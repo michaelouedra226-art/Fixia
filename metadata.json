@@ -1,0 +1,6 @@
+{
+  "name": "Fixia",
+  "description": "Assistant personnel de diagnostic de problèmes domestiques avec IA Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
