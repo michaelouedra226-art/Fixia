@@ -42,6 +42,18 @@ jobs:
             base64 -d debug.keystore.base64 > debug.keystore
             echo "debug.keystore décodé depuis debug.keystore.base64"
           fi
+          if [ ! -f "debug.keystore" ]; then
+            echo "Génération de debug.keystore pour la CI..."
+            keytool -genkey -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
