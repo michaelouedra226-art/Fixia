@@ -29,11 +29,12 @@ jobs:
 
       - name: Ensure Gradle Wrapper and permissions
         run: |
-          if [ ! -f "./gradlew" ]; then
-            echo "gradlew non trouvé, génération du wrapper Gradle..."
+          chmod +x ./gradlew 2>/dev/null || true
+          if [ ! -f "./gradlew" ] || ! ./gradlew --version >/dev/null 2>&1; then
+            echo "Gradle wrapper manquant ou corrompu, régénération avec gradle wrapper..."
             gradle wrapper
+            chmod +x ./gradlew
           fi
-          chmod +x ./gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
