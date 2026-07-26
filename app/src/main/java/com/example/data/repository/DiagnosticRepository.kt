@@ -1,20 +1,25 @@
 package com.example.data.repository
 
 import com.example.data.db.DiagnosticDao
+import com.example.data.db.RoomDao
 import com.example.data.models.ChatMessageEntity
 import com.example.data.models.ConnaissancePersonnelleEntity
 import com.example.data.models.DiagnosticEntity
 import com.example.data.models.DiagnosticResponse
 import com.example.data.models.LocalMediaItem
 import com.example.data.models.ProblemeSuiviEntity
+import com.example.data.models.RoomEntity
+import com.example.data.models.ZoneEntity
 import com.example.data.remote.GeminiApiClient
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
+import android.graphics.Bitmap
 
 class DiagnosticRepository(
     private val dao: DiagnosticDao,
+    private val roomDao: RoomDao,
     private val geminiClient: GeminiApiClient,
     private val settingsRepository: SettingsRepository
 ) {
@@ -26,6 +31,45 @@ class DiagnosticRepository(
     val allProblemesSuivis: Flow<List<ProblemeSuiviEntity>> = dao.getAllProblemesSuivis()
     val activeProblemesSuivis: Flow<List<ProblemeSuiviEntity>> = dao.getActiveProblemesSuivis()
     val allConnaissances: Flow<List<ConnaissancePersonnelleEntity>> = dao.getAllConnaissances()
+
+    // Room & Zone Digital Twin Flows
+    val allRooms: Flow<List<RoomEntity>> = roomDao.getAllRooms()
+
+    fun getRoomById(id: Long): Flow<RoomEntity?> = roomDao.getRoomById(id)
+    fun getZonesForRoom(roomId: Long): Flow<List<ZoneEntity>> = roomDao.getZonesForRoom(roomId)
+    fun getDiagnosticsForRoom(roomId: Long): Flow<List<DiagnosticEntity>> = roomDao.getDiagnosticsForRoom(roomId)
+    fun getActiveProblemCountForRoom(roomId: Long): Flow<Int> = roomDao.getActiveProblemCountForRoom(roomId)
+
+    suspend fun insertRoom(room: RoomEntity): Long = roomDao.insertRoom(room)
+    suspend fun updateRoom(room: RoomEntity) = roomDao.updateRoom(room)
+    suspend fun deleteRoom(id: Long) = roomDao.deleteRoom(id)
+
+    suspend fun insertZone(zone: ZoneEntity): Long = roomDao.insertZone(zone)
+    suspend fun deleteZone(id: Long) = roomDao.deleteZone(id)
+
+    // Image Generation via Gemini
+    suspend fun generateImage(prompt: String, aspectRatio: String = "1:1"): Result<Bitmap> {
+        val apiKey = settingsRepository.getGeminiApiKey()
+        return geminiClient.generateImage(apiKey, prompt, aspectRatio)
+    }
+
+    // Live AR Analysis
+    suspend fun analyzeLiveArFrame(bitmap: Bitmap): Result<com.example.data.models.LiveArAnalysisResponse> {
+        val apiKey = settingsRepository.getGeminiApiKey()
+        return geminiClient.analyzeLiveArFrame(apiKey, bitmap)
+    }
+
+    // Emergency Plan Generation
+    suspend fun generateEmergencyPlan(type: String, description: String): Result<com.example.data.models.EmergencyPlanResponse> {
+        val apiKey = settingsRepository.getGeminiApiKey()
+        return geminiClient.generateEmergencyPlan(apiKey, type, description)
+    }
+
+    // House Maintenance Plan
+    suspend fun generateHouseMaintenancePlan(roomSummary: String): Result<String> {
+        val apiKey = settingsRepository.getGeminiApiKey()
+        return geminiClient.generateHouseMaintenancePlan(apiKey, roomSummary)
+    }
 
     fun getDiagnosticById(id: Long): Flow<DiagnosticEntity?> = dao.getDiagnosticById(id)
     fun getProblemeSuiviById(id: Long): Flow<ProblemeSuiviEntity?> = dao.getProblemeSuiviById(id)

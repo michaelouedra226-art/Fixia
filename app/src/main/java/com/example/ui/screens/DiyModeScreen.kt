@@ -28,6 +28,9 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import org.json.JSONArray
 
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiyModeScreen(
@@ -66,6 +69,11 @@ fun DiyModeScreen(
             null
         }
     } ?: DiagnosticResponse()
+
+    // Map to hold generated step image bitmaps by step index
+    val stepBitmaps = remember { mutableStateMapOf<Int, android.graphics.Bitmap>() }
+    val stepLoading = remember { mutableStateMapOf<Int, Boolean>() }
+    val stepErrors = remember { mutableStateMapOf<Int, String>() }
 
     // Parse completed step indices from JSON
     val completedIndices = remember(entity.completedStepIndicesJson) {
@@ -255,6 +263,54 @@ fun DiyModeScreen(
                                     Text("Sécurité : ${step.conseilSecurite}", style = MaterialTheme.typography.labelSmall, color = UrgenceMoyen)
                                 }
                             }
+                        }
+
+                        // Gemini 2.5 Flash Image Generation for Step
+                        if (stepBitmaps.containsKey(index)) {
+                            Image(
+                                bitmap = stepBitmaps[index]!!.asImageBitmap(),
+                                contentDescription = "Illustration pour ${step.titre}",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                            )
+                        } else {
+                            OutlinedButton(
+                                onClick = {
+                                    stepLoading[index] = true
+                                    stepErrors.remove(index)
+                                    val prompt = "Illustration technique claire de bricolage pour : ${step.titre}. Description : ${step.description}. Style schéma pédagogique épuré."
+                                    viewModel.generateImage(
+                                        prompt = prompt,
+                                        onSuccess = { bmp ->
+                                            stepLoading[index] = false
+                                            stepBitmaps[index] = bmp
+                                        },
+                                        onError = { err ->
+                                            stepLoading[index] = false
+                                            stepErrors[index] = err
+                                        }
+                                    )
+                                },
+                                enabled = stepLoading[index] != true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                if (stepLoading[index] == true) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Génération du schéma...", fontSize = 12.sp)
+                                } else {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Générer l'illustration de l'étape", fontSize = 12.sp)
+                                }
+                            }
+                        }
+
+                        stepErrors[index]?.let { err ->
+                            Text(err, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
                         }
 
                         TextButton(

@@ -22,7 +22,7 @@ class FixiaViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val geminiClient = GeminiApiClient(application)
     val settingsRepo = SettingsRepository(application)
-    val diagnosticRepo = DiagnosticRepository(db.diagnosticDao(), geminiClient, settingsRepo)
+    val diagnosticRepo = DiagnosticRepository(db.diagnosticDao(), db.roomDao(), geminiClient, settingsRepo)
 
     val allDiagnostics: StateFlow<List<DiagnosticEntity>> = diagnosticRepo.allDiagnostics
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -35,6 +35,9 @@ class FixiaViewModel(application: Application) : AndroidViewModel(application) {
 
     val diagnosticCount: StateFlow<Int> = diagnosticRepo.diagnosticCount
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val allRooms: StateFlow<List<com.example.data.models.RoomEntity>> = diagnosticRepo.allRooms
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val themePreference: StateFlow<String> = settingsRepo.themeFlow
     val qualityMode: StateFlow<String> = settingsRepo.qualityFlow
@@ -222,5 +225,136 @@ class FixiaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAllDiagnostics() {
         viewModelScope.launch { diagnosticRepo.clearAllDiagnostics() }
+    }
+
+    // --- Rooms & Zones (Jumeau Numérique / Digital Twin) ---
+    fun insertRoom(name: String, type: String, floor: Int, desc: String, onInserted: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val room = com.example.data.models.RoomEntity(
+                name = name,
+                type = type,
+                floor = floor,
+                description = desc,
+                iconName = when(type.lowercase()) {
+                    "cuisine" -> "kitchen"
+                    "sdb", "salle de bain" -> "bathtub"
+                    "salon", "séjour" -> "weekend"
+                    "chambre" -> "bed"
+                    "garage" -> "garage"
+                    "exterieur", "jardin" -> "park"
+                    else -> "home"
+                }
+            )
+            val id = diagnosticRepo.insertRoom(room)
+            onInserted(id)
+        }
+    }
+
+    fun deleteRoom(id: Long) {
+        viewModelScope.launch { diagnosticRepo.deleteRoom(id) }
+    }
+
+    fun insertZone(roomId: Long, name: String, equipment: String) {
+        viewModelScope.launch {
+            val zone = com.example.data.models.ZoneEntity(roomId = roomId, name = name, equipmentName = equipment)
+            diagnosticRepo.insertZone(zone)
+        }
+    }
+
+    fun deleteZone(id: Long) {
+        viewModelScope.launch { diagnosticRepo.deleteZone(id) }
+    }
+
+    fun getZonesForRoom(roomId: Long): StateFlow<List<com.example.data.models.ZoneEntity>> {
+        return diagnosticRepo.getZonesForRoom(roomId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+
+    fun getDiagnosticsForRoom(roomId: Long): StateFlow<List<DiagnosticEntity>> {
+        return diagnosticRepo.getDiagnosticsForRoom(roomId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+
+    // --- Image Generation (Gemini 2.5 Flash Image) ---
+    private val _isGeneratingImage = MutableStateFlow(false)
+    val isGeneratingImage: StateFlow<Boolean> = _isGeneratingImage.asStateFlow()
+
+    fun generateImage(
+        prompt: String,
+        aspectRatio: String = "1:1",
+        onSuccess: (android.graphics.Bitmap) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isGeneratingImage.value = true
+            val res = diagnosticRepo.generateImage(prompt, aspectRatio)
+            _isGeneratingImage.value = false
+            if (res.isSuccess) {
+                onSuccess(res.getOrThrow())
+            } else {
+                onError(res.exceptionOrNull()?.message ?: "Échec de génération de l'image.")
+            }
+        }
+    }
+
+    // --- Live AR Diagnostic ---
+    private val _liveArResult = MutableStateFlow<com.example.data.models.LiveArAnalysisResponse?>(null)
+    val liveArResult: StateFlow<com.example.data.models.LiveArAnalysisResponse?> = _liveArResult.asStateFlow()
+
+    private val _isAnalyzingLiveAr = MutableStateFlow(false)
+    val isAnalyzingLiveAr: StateFlow<Boolean> = _isAnalyzingLiveAr.asStateFlow()
+
+    fun analyzeLiveArFrame(bitmap: android.graphics.Bitmap) {
+        if (_isAnalyzingLiveAr.value) return
+        viewModelScope.launch {
+            _isAnalyzingLiveAr.value = true
+            val res = diagnosticRepo.analyzeLiveArFrame(bitmap)
+            _isAnalyzingLiveAr.value = false
+            if (res.isSuccess) {
+                _liveArResult.value = res.getOrThrow()
+            }
+        }
+    }
+
+    fun clearLiveArResult() {
+        _liveArResult.value = null
+    }
+
+    // --- Emergency Mode ---
+    private val _emergencyPlan = MutableStateFlow<com.example.data.models.EmergencyPlanResponse?>(null)
+    val emergencyPlan: StateFlow<com.example.data.models.EmergencyPlanResponse?> = _emergencyPlan.asStateFlow()
+
+    private val _isGeneratingEmergencyPlan = MutableStateFlow(false)
+    val isGeneratingEmergencyPlan: StateFlow<Boolean> = _isGeneratingEmergencyPlan.asStateFlow()
+
+    fun generateEmergencyPlan(type: String, desc: String) {
+        viewModelScope.launch {
+            _isGeneratingEmergencyPlan.value = true
+            val res = diagnosticRepo.generateEmergencyPlan(type, desc)
+            _isGeneratingEmergencyPlan.value = false
+            _emergencyPlan.value = res.getOrDefault(com.example.data.models.EmergencyPlanResponse())
+        }
+    }
+
+    fun getEmergencyContactPhone(): String = settingsRepo.getEmergencyContactPhone()
+    fun saveEmergencyContactPhone(phone: String) = settingsRepo.saveEmergencyContactPhone(phone)
+
+    fun getEmergencyContactName(): String = settingsRepo.getEmergencyContactName()
+    fun saveEmergencyContactName(name: String) = settingsRepo.saveEmergencyContactName(name)
+
+    // --- House Maintenance Plan ---
+    private val _houseMaintenancePlan = MutableStateFlow<String?>(null)
+    val houseMaintenancePlan: StateFlow<String?> = _houseMaintenancePlan.asStateFlow()
+
+    private val _isGeneratingMaintenancePlan = MutableStateFlow(false)
+    val isGeneratingMaintenancePlan: StateFlow<Boolean> = _isGeneratingMaintenancePlan.asStateFlow()
+
+    fun generateHouseMaintenancePlan(roomSummary: String) {
+        viewModelScope.launch {
+            _isGeneratingMaintenancePlan.value = true
+            val res = diagnosticRepo.generateHouseMaintenancePlan(roomSummary)
+            _isGeneratingMaintenancePlan.value = false
+            _houseMaintenancePlan.value = res.getOrDefault("Plan de maintenance indisponible.")
+        }
     }
 }

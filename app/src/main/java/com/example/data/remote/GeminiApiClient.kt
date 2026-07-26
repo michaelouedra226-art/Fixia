@@ -86,6 +86,8 @@ class GeminiApiClient(private val context: Context) {
 
     private val comparisonAdapter = moshi.adapter(com.example.data.models.ComparisonResponse::class.java)
     private val beforeAfterAdapter = moshi.adapter(com.example.data.models.BeforeAfterResponse::class.java)
+    private val liveArAdapter = moshi.adapter(com.example.data.models.LiveArAnalysisResponse::class.java)
+    private val emergencyAdapter = moshi.adapter(com.example.data.models.EmergencyPlanResponse::class.java)
 
     suspend fun analyzeDiagnostic(
         apiKey: String,
@@ -418,6 +420,223 @@ class GeminiApiClient(private val context: Context) {
 
             val candidates = JSONObject(resStr).optJSONArray("candidates")
             val text = candidates?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)?.optString("text") ?: "Pas de réponse"
+            Result.success(text)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun generateImage(
+        apiKey: String,
+        prompt: String,
+        aspectRatio: String = "1:1"
+    ): Result<Bitmap> = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            return@withContext Result.failure(Exception("Clé API Gemini manquante. Veuillez la configurer dans les paramètres."))
+        }
+
+        val model = "gemini-2.5-flash-image"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+
+        try {
+            val rootObj = JSONObject()
+            val contentObj = JSONObject().put("parts", JSONArray().put(JSONObject().put("text", prompt)))
+            rootObj.put("contents", JSONArray().put(contentObj))
+
+            val genConfig = JSONObject()
+                .put("responseModalities", JSONArray().put("TEXT").put("IMAGE"))
+                .put("imageConfig", JSONObject().put("aspectRatio", aspectRatio))
+            rootObj.put("generationConfig", genConfig)
+
+            val body = rootObj.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder().url(url).post(body).build()
+
+            val response = client.newCall(request).execute()
+            val resStr = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(Exception("Erreur de génération d'image (${response.code}) : $resStr"))
+            }
+
+            val candidates = JSONObject(resStr).optJSONArray("candidates")
+            if (candidates == null || candidates.length() == 0) {
+                return@withContext Result.failure(Exception("Aucune image générée par Gemini."))
+            }
+
+            val parts = candidates.getJSONObject(0).optJSONObject("content")?.optJSONArray("parts")
+            if (parts != null) {
+                for (i in 0 until parts.length()) {
+                    val part = parts.getJSONObject(i)
+                    val inlineData = part.optJSONObject("inlineData")
+                    if (inlineData != null) {
+                        val base64Data = inlineData.optString("data")
+                        if (base64Data.isNotBlank()) {
+                            val decodedBytes = Base64.decode(base64Data, Base64.DEFAULT)
+                            val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                            if (bitmap != null) {
+                                return@withContext Result.success(bitmap)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Result.failure(Exception("Format d'image non trouvé dans la réponse."))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun analyzeLiveArFrame(
+        apiKey: String,
+        bitmap: Bitmap
+    ): Result<com.example.data.models.LiveArAnalysisResponse> = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            return@withContext Result.failure(Exception("Clé API manquante."))
+        }
+
+        val model = "gemini-2.5-flash"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+
+        try {
+            val outputStream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+            val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+
+            val prompt = """
+                Analyse cette image de diagnostic domestique instantané pour superposition Réalité Augmentée (Live AR).
+                Identifie les zones d'anomalies (eau, électricité, fissure, surchauffe, usure) avec leurs coordonnées normalisées (0 à 1000).
+                
+                Réponds STRICTEMENT en JSON selon ce schéma :
+                {
+                  "overlay_zones": [
+                    {
+                      "label": "Titre court du problème",
+                      "severity": "red" | "orange" | "yellow",
+                      "box_2d": [ymin, xmin, ymax, xmax],
+                      "description": "Explication rapide"
+                    }
+                  ],
+                  "is_danger_immediat": false,
+                  "titre_detection": "Analyse rapide",
+                  "niveau_urgence": "faible" | "moyen" | "eleve" | "critique"
+                }
+            """.trimIndent()
+
+            val partsArray = JSONArray()
+                .put(JSONObject().put("text", prompt))
+                .put(JSONObject().put("inlineData", JSONObject().put("mimeType", "image/jpeg").put("data", base64Image)))
+
+            val rootObj = JSONObject()
+                .put("contents", JSONArray().put(JSONObject().put("parts", partsArray)))
+                .put("generationConfig", JSONObject().put("responseMimeType", "application/json"))
+
+            val body = rootObj.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder().url(url).post(body).build()
+
+            val response = client.newCall(request).execute()
+            val resStr = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(Exception("Erreur AR: $resStr"))
+            }
+
+            val candidates = JSONObject(resStr).optJSONArray("candidates")
+            val rawJsonText = candidates?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)?.optString("text") ?: ""
+            val cleanedJson = rawJsonText.replace("^```json".toRegex(), "").replace("^```".toRegex(), "").replace("```$".toRegex(), "").trim()
+
+            val parsed = liveArAdapter.fromJson(cleanedJson) ?: com.example.data.models.LiveArAnalysisResponse()
+            Result.success(parsed)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun generateEmergencyPlan(
+        apiKey: String,
+        emergencyType: String,
+        description: String
+    ): Result<com.example.data.models.EmergencyPlanResponse> = withContext(Dispatchers.IO) {
+        val model = "gemini-2.5-flash"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+
+        try {
+            val prompt = """
+                URGENCE VITALE / DANGER IMMÉDIAT DÉTECTÉ.
+                Type de danger : $emergencyType
+                Description : $description
+                
+                Génère un plan de mise en sécurité d'urgence numéro un, ultra-clair, direct et concis pour protéger les personnes et le logement immédiatement.
+                
+                Réponds STRICTEMENT en JSON avec ce schéma :
+                {
+                  "titre": "Alerte de Sécurité Immédiate",
+                  "type_danger": "Électrique / Gaz / Inondation / Structure",
+                  "actions_prioritaires": [
+                    {
+                      "etape": 1,
+                      "action": "Action 1 immédiate (ex: Couper le disjoncteur général)",
+                      "conseil": "Conseil de sécurité vitale",
+                      "is_critical": true
+                    }
+                  ],
+                  "consigne_securite": "Message de prudence"
+                }
+            """.trimIndent()
+
+            val rootObj = JSONObject()
+                .put("contents", JSONArray().put(JSONObject().put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
+                .put("generationConfig", JSONObject().put("responseMimeType", "application/json"))
+
+            val body = rootObj.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder().url(url).post(body).build()
+
+            val response = client.newCall(request).execute()
+            val resStr = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) return@withContext Result.failure(Exception(resStr))
+
+            val candidates = JSONObject(resStr).optJSONArray("candidates")
+            val rawJsonText = candidates?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)?.optString("text") ?: ""
+            val cleanedJson = rawJsonText.replace("^```json".toRegex(), "").replace("^```".toRegex(), "").replace("```$".toRegex(), "").trim()
+
+            val parsed = emergencyAdapter.fromJson(cleanedJson) ?: com.example.data.models.EmergencyPlanResponse()
+            Result.success(parsed)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun generateHouseMaintenancePlan(
+        apiKey: String,
+        roomSummary: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        val model = "gemini-2.5-flash"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+
+        try {
+            val prompt = """
+                Tu es l'assistant Jumeau Numérique de la maison Fixia.
+                Voici l'état actuel des pièces et des équipements enregistrés :
+                $roomSummary
+                
+                Rédige un Plan de Maintenance Préventive personnalisé pour le logement (actions recommandées à 1 mois, 3 mois, et conseils de prévention saisonnière).
+                Formatte ta réponse en texte structuré avec des titres clairs et des conseils pratiques.
+            """.trimIndent()
+
+            val rootObj = JSONObject()
+                .put("contents", JSONArray().put(JSONObject().put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
+
+            val body = rootObj.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder().url(url).post(body).build()
+
+            val response = client.newCall(request).execute()
+            val resStr = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) return@withContext Result.failure(Exception(resStr))
+
+            val candidates = JSONObject(resStr).optJSONArray("candidates")
+            val text = candidates?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)?.optString("text") ?: "Plan indisponible"
             Result.success(text)
         } catch (e: Exception) {
             Result.failure(e)

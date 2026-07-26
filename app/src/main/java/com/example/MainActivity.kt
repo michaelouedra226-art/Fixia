@@ -42,7 +42,34 @@ class MainActivity : ComponentActivity() {
                             onNavigateToSettings = { navController.navigate("settings") },
                             onNavigateToDetail = { id -> navController.navigate("detail/$id") },
                             onNavigateToTrackedProblems = { navController.navigate("history") },
-                            onNavigateToKnowledgeStats = { navController.navigate("knowledge_stats") }
+                            onNavigateToKnowledgeStats = { navController.navigate("knowledge_stats") },
+                            onNavigateToLiveAr = { navController.navigate("live_ar") },
+                            onNavigateToEmergency = { navController.navigate("emergency") },
+                            onNavigateToHouseDigitalTwin = { navController.navigate("house_digital_twin") }
+                        )
+                    }
+
+                    composable("live_ar") {
+                        LiveArDiagnosticScreen(
+                            viewModel = viewModel,
+                            onBack = { navController.popBackStack() },
+                            onNavigateToNewDiagnostic = { navController.navigate("new_diagnostic") },
+                            onNavigateToEmergency = { navController.navigate("emergency") }
+                        )
+                    }
+
+                    composable("emergency") {
+                        EmergencyModeScreen(
+                            viewModel = viewModel,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable("house_digital_twin") {
+                        HouseDigitalTwinScreen(
+                            viewModel = viewModel,
+                            onBack = { navController.popBackStack() },
+                            onNavigateToDiagnosticDetail = { id -> navController.navigate("detail/$id") }
                         )
                     }
 

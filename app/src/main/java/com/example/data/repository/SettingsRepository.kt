@@ -59,4 +59,20 @@ class SettingsRepository(context: Context) {
         prefs.edit().putString("theme_preference", theme).apply()
         _themeFlow.value = theme
     }
+
+    fun getEmergencyContactPhone(): String {
+        return prefs.getString("emergency_contact_phone", "112") ?: "112"
+    }
+
+    fun saveEmergencyContactPhone(phone: String) {
+        prefs.edit().putString("emergency_contact_phone", phone.trim()).apply()
+    }
+
+    fun getEmergencyContactName(): String {
+        return prefs.getString("emergency_contact_name", "Contact d'urgence") ?: "Contact d'urgence"
+    }
+
+    fun saveEmergencyContactName(name: String) {
+        prefs.edit().putString("emergency_contact_name", name.trim()).apply()
+    }
 }

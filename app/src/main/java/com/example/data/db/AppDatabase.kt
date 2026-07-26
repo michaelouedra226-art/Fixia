@@ -8,19 +8,24 @@ import com.example.data.models.ChatMessageEntity
 import com.example.data.models.ConnaissancePersonnelleEntity
 import com.example.data.models.DiagnosticEntity
 import com.example.data.models.ProblemeSuiviEntity
+import com.example.data.models.RoomEntity
+import com.example.data.models.ZoneEntity
 
 @Database(
     entities = [
         DiagnosticEntity::class,
         ProblemeSuiviEntity::class,
         ChatMessageEntity::class,
-        ConnaissancePersonnelleEntity::class
+        ConnaissancePersonnelleEntity::class,
+        RoomEntity::class,
+        ZoneEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun diagnosticDao(): DiagnosticDao
+    abstract fun roomDao(): RoomDao
 
 
     companion object {

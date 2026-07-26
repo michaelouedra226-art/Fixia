@@ -77,7 +77,27 @@ data class DiagnosticEntity(
     val isPendingAnalysis: Boolean = false,
     val isExpressMode: Boolean = false,
     val beforeAfterType: String? = null, // "AVANT" or "APRES"
-    val beforeDiagnosticId: Long? = null
+    val beforeDiagnosticId: Long? = null,
+    val roomId: Long? = null,
+    val zoneId: Long? = null
+)
+
+@Entity(tableName = "rooms")
+data class RoomEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val type: String = "autre", // "cuisine", "sdb", "salon", "chambre", "garage", "exterieur", "combles"
+    val iconName: String = "home",
+    val floor: Int = 0,
+    val description: String = ""
+)
+
+@Entity(tableName = "zones")
+data class ZoneEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val roomId: Long,
+    val name: String,
+    val equipmentName: String = ""
 )
 
 @Entity(tableName = "problemes_suivis")
@@ -88,7 +108,8 @@ data class ProblemeSuiviEntity(
     val statut: String = "EN_COURS", // "EN_COURS", "SOUS_SURVEILLANCE", "RESOLU", "EMPIRE"
     val urgenceActuelle: String = "moyen",
     val diagnosticInitialId: Long = 0L,
-    val derniereMiseAJour: Long = System.currentTimeMillis()
+    val derniereMiseAJour: Long = System.currentTimeMillis(),
+    val roomId: Long? = null
 )
 
 @Entity(tableName = "chat_messages")
@@ -126,5 +147,37 @@ data class BeforeAfterResponse(
     @Json(name = "explication_detaillee") val explicationDetaillee: String = "",
     @Json(name = "nouveau_score_confiance") val nouveauScoreConfiance: Double = 0.9,
     @Json(name = "recommandation") val recommandation: String = "Réparation terminée avec succès."
+)
+
+@JsonClass(generateAdapter = true)
+data class LiveArZone(
+    @Json(name = "label") val label: String = "Anomalie détectée",
+    @Json(name = "severity") val severity: String = "orange", // "red", "orange", "yellow"
+    @Json(name = "box_2d") val box2d: List<Int> = listOf(200, 200, 800, 800), // ymin, xmin, ymax, xmax (0-1000)
+    @Json(name = "description") val description: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+data class LiveArAnalysisResponse(
+    @Json(name = "overlay_zones") val overlayZones: List<LiveArZone> = emptyList(),
+    @Json(name = "is_danger_immediat") val isDangerImmediat: Boolean = false,
+    @Json(name = "titre_detection") val titreDetection: String = "Analyse en cours",
+    @Json(name = "niveau_urgence") val niveauUrgence: String = "faible"
+)
+
+@JsonClass(generateAdapter = true)
+data class EmergencyActionStep(
+    @Json(name = "etape") val etape: Int = 1,
+    @Json(name = "action") val action: String = "",
+    @Json(name = "conseil") val conseil: String = "",
+    @Json(name = "is_critical") val isCritical: Boolean = true
+)
+
+@JsonClass(generateAdapter = true)
+data class EmergencyPlanResponse(
+    @Json(name = "titre") val titre: String = "Urgence Domestique",
+    @Json(name = "type_danger") val typeDanger: String = "Général",
+    @Json(name = "actions_prioritaires") val actionsPrioritaires: List<EmergencyActionStep> = emptyList(),
+    @Json(name = "consigne_securite") val consigneSecurite: String = ""
 )
 

@@ -48,7 +48,10 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToDetail: (Long) -> Unit,
     onNavigateToTrackedProblems: () -> Unit = {},
-    onNavigateToKnowledgeStats: () -> Unit = {}
+    onNavigateToKnowledgeStats: () -> Unit = {},
+    onNavigateToLiveAr: () -> Unit = {},
+    onNavigateToEmergency: () -> Unit = {},
+    onNavigateToHouseDigitalTwin: () -> Unit = {}
 ) {
 
     val context = LocalContext.current
@@ -275,6 +278,119 @@ fun HomeScreen(
                     ),
                     singleLine = true
                 )
+            }
+
+            // Major Features Action Row
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Fonctionnalités Intelligentes",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Live AR Card
+                        Card(
+                            onClick = onNavigateToLiveAr,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(100.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxSize(),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Camera, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Surface(color = MaterialTheme.colorScheme.primary, shape = CircleShape) {
+                                        Text("AR", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                    }
+                                }
+                                Column {
+                                    Text("Diagnostic Live AR", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Analyse vidéo directe", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+
+                        // House Digital Twin Card
+                        Card(
+                            onClick = onNavigateToHouseDigitalTwin,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(100.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxSize(),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.HomeWork, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
+                                }
+                                Column {
+                                    Text("Ma Maison", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Jumeau Numérique", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+
+                        // Emergency Mode Card
+                        Card(
+                            onClick = onNavigateToEmergency,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(100.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFEF5350))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxSize(),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.White)
+                                    Icon(Icons.Default.FlashOn, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                }
+                                Column {
+                                    Text("Mode Urgence", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+                                    Text("Mise en sécurité", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Stats row
