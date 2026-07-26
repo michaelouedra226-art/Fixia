@@ -36,6 +36,13 @@ jobs:
             chmod +x ./gradlew
           fi
 
+      - name: Prepare Debug Keystore
+        run: |
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+            echo "debug.keystore décodé depuis debug.keystore.base64"
+          fi
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
         env:
